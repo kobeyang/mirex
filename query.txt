@@ -1,0 +1,11 @@
+./query/20000.wav
+./query/20001.wav
+./query/20002.wav
+./query/20003.wav
+./query/20004.wav
+./query/20005.wav
+./query/20006.wav
+./query/20007.wav
+./query/20008.wav
+./query/20009.wav
+
