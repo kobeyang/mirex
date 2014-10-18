@@ -14,11 +14,38 @@
 
 using namespace std;
 
+int THREAD_NUM = 8;
+ofstream fout;
+Searcher searcher;
+
+void MultiThreadSearch(const vector<string>& query_files, int thread_id) {
+	FingerExtractor extractor;
+	
+	for(int i = 0 ;i < query_files.size(); i++)	{
+		if (i % THREAD_NUM != thread_id)
+			continue;
+		if (extractor.CalcFingerprint(query_files[i]) == false) {
+      cerr << query_files[i] << " -- calculating fingerprint failed!" << endl;
+			continue;
+    }
+		vector<bitset<32>> finger_block = extractor.getQueryFinger();
+		string result = searcher.SubSamplingSearch(finger_block);
+		string output = query_files[i] + "\t" + result + "\n";
+		fout << output;
+		fout.flush();
+		cerr << query_files[i] << "   ...done." << endl;
+	}
+}
+
 int main(int argc, char* argv[]) {
 	if (argc < 4) {
 		cerr << "Usage: ./matcher %fileList4query% %dir4db% %resultFile%" << endl;
 		return -1;
 	}
+  if (argc == 6) {
+    THREAD_NUM = stoi(argv[5]);
+    cerr << "Set thread num to " << stoi(argv[5]) << endl;
+  }
 	string query_list_path = string(argv[1]);
 	string dir4db = string(argv[2]);
 	string result_file = string(argv[3]);
@@ -34,21 +61,18 @@ int main(int argc, char* argv[]) {
 	}
 	fin.close();
 
-	struct timeval start, end;
-	gettimeofday(&start, NULL);
-
-	Searcher searcher;
+	cerr << "Building index." << endl;
 	searcher.BuildIndex(dir4db);
-	cout<<"build index done"<<endl;
+	cerr << "Building index done." << endl;
 
-	ofstream fout;
 	fout.open(result_file, fstream::out);
-	searcher.Search(query_list, fout);
+
+	vector<thread> threads;
+	for (int i = 0; i < THREAD_NUM; i++)
+		threads.push_back(thread(MultiThreadSearch, query_list, i));
+	for (int i = 0; i < THREAD_NUM; i++)
+		threads[i].join();
+
 	fout.close();
-
-	gettimeofday(&end, NULL);
-	int time_use = (end.tv_sec - start.tv_sec);
-	cout<<"Time: "<<time_use<<endl;
-
 	return 0;
 }

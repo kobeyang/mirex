@@ -1,5 +1,3 @@
-#include <iostream>
-#include <fstream>
 #include <vector>
 #include <bitset>
 #include <map>
@@ -14,90 +12,60 @@
 
 using namespace std;
 
-const double THRESHOLD = 0.35;
-
-map<double, int> result_map;
+const double THRESHOLD = 0.5;
 
 bool comp(pair<int, MusicInfo> a, pair<int, MusicInfo> b) {
 	return a.first < b.first;
 }
 
 int Searcher::BuildIndex(string dirPath) {
-	finger_database.clear();
 	finger_database.resize(10010);
 	time_t sort_start, sort_end;
 	Util::load_dir(dirPath, "txt", allFiles);
-	mapping.resize(allFiles.size());
+	file_map.resize(allFiles.size());
 
 	for(int i = 0; i < (signed)allFiles.size(); i++) {
-		if(i % 1000 == 0)
-			cout<<"Index: "<<i<<endl;
 		_build_one_file_index(allFiles[i], i);
 	}
 	
-	cout<<"index size: "<<index.size()<<endl;
-	sort_start = clock();
 	sort(index.begin(), index.end(), comp);
-	sort_end = clock();
-	double sort_time = (double)(sort_end - sort_start) / CLOCKS_PER_SEC;
-	cout<<"Sort time: "<<sort_time<<endl;
 	return 0;
 }
 
-void Searcher::Search(const vector<string>& query_files, ofstream& fout) {
-	int not_found = 0, yes = 0;
-	FingerExtractor extractor;
-	for(int i = 0 ;i < query_files.size(); i++)	{
-		extractor.CalcFingerprint(query_files[i]);
-		vector<bitset<32>> finger_block = extractor.getQueryFinger();
-		int queryId = extractor.getFingerFileId();
-		int result = SubSamplingSearch(finger_block);
-		if(result == -1) {
-			cout<<"file: "<<queryId<<" Not found"<<endl;
-			not_found++;
-		}	else if(result == queryId) {
-			//cout<<"Match!  "<<result<<endl;
-			yes++;
-		}	else {
-			yes++;
-			cout << "Not match! " << queryId << "\t" << mapping[result] << endl;
-		}
-	}
-}
-
-int Searcher::SubSamplingSearch(const vector<bitset<32>>& finger_block) {
-	result_map.clear();
+string Searcher::SubSamplingSearch(const vector<bitset<32>>& finger_block) {
+	map<double, int> result_map;
 	int result = -1;
-	for(int i = 0; i < finger_block.size(); i++) {
+	for (int i = 0; i < finger_block.size(); i++) {
 		unsigned int key = finger_block[i].to_ulong();
-		if(key == 0)
+		if (key == 0)
 			continue;
-		_inner_search(key, finger_block, i);
+		_inner_search(key, finger_block, i, result_map);
 	}
-	for(int i = 0; i < finger_block.size(); i++) {
-		for(int j = 0; j < 32; j++)	{
+	for (int i = 0; i < finger_block.size(); i++) {
+		for (int j = 0; j < 32; j++)	{
 			bitset<32> item = finger_block[i];
 			item.flip(j);
 			unsigned int key = item.to_ulong();
-			if(key == 0)
+			if (key == 0)
 				continue;
-			_inner_search(key, finger_block, i);
+			_inner_search(key, finger_block, i, result_map);
 		}
 	}
-	for(int i = 0; i < finger_block.size(); i++)	{
-		for(int j = 0; j < 31; j++) {
-			for(int m = j + 1; m < 32; m++)	{
+	for (int i = 0; i < finger_block.size(); i++)	{
+		for (int j = 0; j < 31; j++) {
+			for (int m = j + 1; m < 32; m++)	{
 				bitset<32> item = finger_block[i];
 				item.flip(j);
 				item.flip(m);
 				unsigned int key = item.to_ulong();
-				if(key == 0)
+				if (key == 0)
 					continue;
-				_inner_search(key, finger_block, i);
+				_inner_search(key, finger_block, i, result_map);
 			}
 		}
 	}
-	return result_map.begin()->second;
+	int file_id = result_map.begin()->second;
+	return file_map[file_id];
 }
 
 long long Searcher::_binary_search(unsigned int key) {
@@ -122,8 +90,7 @@ void Searcher::_build_one_file_index(const string filepath, int id) {
 	Util::load_one_file(filepath, finger_file, filename);
 	vector<bitset<32>> fingers_block = Util::VectorIntToVectorBitset(finger_file);
 	finger_database[id] = fingers_block;
-	//mapping[id] = filename;
-	mapping[id] = filepath;
+	file_map[id] = filename;
 	MusicInfo m(id, 0);
 	for(int i = 0; i < (signed)finger_file.size(); i++) {
 		if (finger_file[i] != 0) {
@@ -135,7 +102,7 @@ void Searcher::_build_one_file_index(const string filepath, int id) {
 }
 
 void Searcher::_inner_search(unsigned int key, const vector<bitset<32>>& finger_block,
-														const int i) {
+														const int i, map<double, int>& result_map) {
 	long long result = _binary_search(key);
 	if (result == -1)
 		return;
@@ -143,11 +110,11 @@ void Searcher::_inner_search(unsigned int key, const vector<bitset<32>>& finger_
 	long long end = result;
 	do {
 		start--;
-	} while(start >= 0 && index[start].first == key);
+	} while (start >= 0 && index[start].first == key);
 	start++;
 	do {
 		end++;
-	} while(end < (signed)index.size() && index[end].first == key);
+	} while (end < (signed)index.size() && index[end].first == key);
 	end--;
 
 	for (long long iter = start; iter <= end; iter++) {

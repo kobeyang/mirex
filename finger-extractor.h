@@ -1,4 +1,5 @@
 #include <iostream>
+#include <memory>
 #include <vector>
 #include <bitset>
 #include "fft.h"
@@ -6,17 +7,17 @@
 
 extern const int NumBinsInFftWinM; // 2048
 extern const int NumSamplesPerFrameM; //1850
-const double timeInterval = 0.0232;
+const double timeInterval = 0.0116;
 const double frameInterval = 0.37;
 const int sampleRate = 5000;
 
 class FingerExtractor{
 public:
 	FingerExtractor();
-	void CalcFingerprint(const string waveFilePath);
-	int PrintFingerToFile(const string filepath);
+	bool CalcFingerprint(const string waveFilePath);
+	bool PrintFingerToFile(const string& filename, const string& filepath);
 	std::vector<std::bitset<32>> getQueryFinger();
-	int getFingerFileId();
+	//int getFingerFileId();
 
 private:
 	void _calc_freq_bind();
@@ -28,8 +29,8 @@ private:
 	std::vector<std::vector<double>> energy; //能量E[n,m]，表示第n帧的第m个频带的能量值 33
 	std::vector<std::string> fingers; //最终的指纹结果 32
 
-	WaveProcessor* wp = NULL;
+	std::shared_ptr<WaveProcessor> wp;
 
-	int _Energying(int all_time_data_size);
-	void _Fingerprinting();
+	bool _Energying(int all_time_data_size);
+	bool _Fingerprinting();
 };

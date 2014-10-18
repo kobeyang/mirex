@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdio>
 #include <thread>
+#include <memory>
 #include <vector>
 #include <string>
 #include <bitset>
@@ -23,28 +24,36 @@ const double freq_bind[] =
  1683.17, 1782.77, 1888.27, 2000.00}; //划分的频带 [0, 33]
 
 FingerExtractor::FingerExtractor() {
-	wp = new WaveProcessor(5000);
+	wp = shared_ptr<WaveProcessor>(new WaveProcessor(5000));
 }
 
-void FingerExtractor::CalcFingerprint(const string waveFilePath)
-{
+bool FingerExtractor::CalcFingerprint(const string waveFilePath) {
 	this->wavepath = waveFilePath;
 	wp->Clear();
-	wp->OpenWaveFile(waveFilePath.c_str());
+	// return 0 if succeed, others if failed.
+	if (wp->OpenWaveFile(waveFilePath.c_str())) {
+    cerr << "Open wave file failed!" << endl;
+		return false;
+  }
 	wp->MakeTargetSamplesData();
 	all_time_data = wp->GetSamplesVector();
 	wp->CloseWaveFile();
-	_Energying(all_time_data.size());
-	_Fingerprinting();
+	if (_Energying(all_time_data.size()) == false) {
+    cerr << "Energying failed!" << endl;
+    return false;
+  }
+	if (_Fingerprinting() == false) {
+    cerr << "Fingerprinting failed!" << endl;
+    return false;
+  }
+	return true;
 }
 
-int FingerExtractor::_select_bind(double point_freq)
-{
+int FingerExtractor::_select_bind(double point_freq) {
 	int start = 0;
 	int end = 33;
 	int mid = 0;
-	while(start <= end)
-	{
+	while(start <= end) {
 		mid = (end + start) / 2;
 		if(point_freq < freq_bind[mid])
 			end = mid - 1;
@@ -56,7 +65,7 @@ int FingerExtractor::_select_bind(double point_freq)
 	return -1;
 }
 
-int FingerExtractor::_Energying(int all_time_data_size) {
+bool FingerExtractor::_Energying(int all_time_data_size) {
 	energy.clear();
 	frameNum = 0;
 	int start = 0;
@@ -80,6 +89,10 @@ int FingerExtractor::_Energying(int all_time_data_size) {
 				continue;
 			}	else{
 				int bind = _select_bind(point_freq); // [0,32]
+        if (bind == -1) {
+          cerr << "select bind error!" << endl;
+          return false;
+        }
 				bind_energy[bind] += sqrt((freq_data[j].re * freq_data[j].re + freq_data[j].im * freq_data[j].im));
 			}
 		}
@@ -92,10 +105,14 @@ int FingerExtractor::_Energying(int all_time_data_size) {
 		frameNum++;
 		start+=jump_samples;
 	}
-	return frameNum;
+	return true;
 }
 
-void FingerExtractor::_Fingerprinting() {
+bool FingerExtractor::_Fingerprinting() {
+  if (frameNum == 0) {
+    cerr << "frame number is 0!" << endl;
+    return false;
+  }
 	fingers.resize(frameNum);
 	for (int i = 0; i < frameNum; i++)
 		fingers[i].resize(32);
@@ -115,6 +132,7 @@ void FingerExtractor::_Fingerprinting() {
 				fingers[i][j] = '0';
 		}
 	}
+  return true;
 }
 
 vector<bitset<32>> FingerExtractor::getQueryFinger() {
@@ -124,18 +142,23 @@ vector<bitset<32>> FingerExtractor::getQueryFinger() {
 	return query_finger;
 }
 
+/*
 int FingerExtractor::getFingerFileId() {
 	int slash_idx = wavepath.find_last_of("/");
 	string originFile = wavepath.substr(slash_idx + 1);
 	return stoi(originFile.substr(0, originFile.find(".")));
 }
+*/
 
-int FingerExtractor::PrintFingerToFile(const string fingerFile) {
+bool FingerExtractor::PrintFingerToFile(const string& filename, const string& fingerFile) {
 	FILE *fp = fopen(fingerFile.c_str(), "w");
+  if (fp == NULL) {
+    cerr << "Can't create file " << fingerFile << endl;
+    return false;
+  }
 	string sub_finger;
-	fprintf(fp, "%s\n", wavepath.c_str());
-	for(int i = 0; i < frameNum ; i++)
-	{
+	fprintf(fp, "%s\n", filename.c_str());
+	for(int i = 0; i < frameNum ; i++) {
 		sub_finger = "";
 		for(int j = 0; j < 32;j ++)
 			sub_finger.push_back(fingers[i][j]);
@@ -143,5 +166,5 @@ int FingerExtractor::PrintFingerToFile(const string fingerFile) {
 		fprintf(fp, "%lu\n", b.to_ulong());
 	}
 	fclose(fp);
-	return 0;
+	return true;
 }

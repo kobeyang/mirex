@@ -75,7 +75,7 @@ int WaveProcessor::OpenWaveFile(const char *psfn_waveR)
 
 	FILE *pfWave = fopen(psfn_waveR, "rb");	// read from a binary file
 	if (pfWave == NULL) {
-		printf("Can't open the wf file %s!\n", psfn_waveR);
+		//printf("Can't open the wf file %s!\n", psfn_waveR);
 		return -10;
 	}
 
